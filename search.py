@@ -10,12 +10,11 @@ from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.schema import Document
 import time
-from prompt_toolkit.formatted_text import HTML, FormattedText
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.application import Application
 from prompt_toolkit.layout import Layout
-from prompt_toolkit.widgets import TextArea, Frame, Label
-from prompt_toolkit.layout.containers import HSplit, Window
+from prompt_toolkit.widgets import TextArea
+from prompt_toolkit.layout.containers import HSplit
 from prompt_toolkit.styles import Style
 
 def load_config() -> dict:
@@ -125,32 +124,41 @@ def interactive_slide_viewer(results, query):
     tooltip = TextArea(
         text="Press [n]ext, [p]rev, [o]pen PDF, or [q]uit",
         style="class:tooltip",
-        wrap_lines=True,
         read_only=True,
-        height=1
+        height=1,
+        wrap_lines=True,
+        multiline=False,
+        focusable=False
     )
     
     query_label = TextArea(
         text=f"🔍 Search query: {query}",
         style="class:query",
-        wrap_lines=True,
         read_only=True,
-        height=1
+        height=1,
+        wrap_lines=True,
+        # multiline=False,
+        focusable=False
     )
     
     separator = TextArea(
         text="─" * (terminal_width - 4),
         style="class:separator",
         read_only=True,
-        height=1
+        height=1,
+        wrap_lines=True,
+        multiline=False,
+        focusable=False
     )
     
     header = TextArea(
         text=f"[{i+1}/{len(results)}] Slide {results[i].metadata.get('page')} - {results[i].metadata.get('source')}",
         style="class:header",
-        wrap_lines=True,
         read_only=True,
-        height=1
+        height=2,
+        wrap_lines=True,
+        multiline=True,
+        focusable=False
     )
     
     # Main content area
@@ -160,7 +168,11 @@ def interactive_slide_viewer(results, query):
         wrap_lines=True,
         read_only=True,
         line_numbers=True,
-        style="class:content"
+        style="class:content",
+        height=20,  # Set a fixed height for the content area
+        multiline=True,  # Enable multiline editing
+        focusable=True,  # Make sure it can receive focus
+        accept_handler=None  # Disable text input
     )
     
     def update_content():
@@ -220,7 +232,9 @@ def interactive_slide_viewer(results, query):
         layout=layout,
         key_bindings=kb,
         full_screen=True,
-        style=style
+        style=style,
+        mouse_support=True,  # Enable mouse scrolling
+        # editing_mode='emacs'  # Use emacs key bindings for better navigation
     )
     app.run()
 
