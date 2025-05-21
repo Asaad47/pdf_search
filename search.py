@@ -10,12 +10,13 @@ from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.schema import Document
 import time
-from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.formatted_text import HTML, FormattedText
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.application import Application
 from prompt_toolkit.layout import Layout
-from prompt_toolkit.widgets import TextArea, Frame
-from prompt_toolkit.layout.containers import HSplit
+from prompt_toolkit.widgets import TextArea, Frame, Label
+from prompt_toolkit.layout.containers import HSplit, Window
+from prompt_toolkit.styles import Style
 
 def load_config() -> dict:
     """Load configuration from YAML file."""
@@ -87,27 +88,97 @@ def get_terminal_width() -> int:
         return columns
     except:
         return 80  # fallback to default width
+    
+
+def format_slide_content(content: str, max_width: int) -> str:
+    """Format slide content with proper wrapping and indentation."""
+    # Split into lines and process each line
+    lines = content.split('\n')
+    formatted_lines = []
+    for line in lines:
+        # Remove leading/trailing whitespace
+        line = line.strip()
+        if not line:
+            formatted_lines.append('')
+            continue
+            
+        # Handle bullet points
+        if line.startswith('▶'):
+            # Add proper indentation for bullet points
+            formatted_lines.append('  • ' + line[1:].strip())
+        else:
+            formatted_lines.append(line)
+    
+    return '\n'.join(formatted_lines)
+
 
 def interactive_slide_viewer(results, query):
     i = 0
     terminal_width = get_terminal_width()
-    separator = "-" * (terminal_width - 7)
 
     def get_slide_text(index):
-        tool_tip = f"Press [n]ext, [p]rev, [o]pen PDF, or [q]uit"
-        query_text = f"🔍 Search query: {query}"
-        
         doc = results[index]
-        header = f"[{index+1}/{len(results)}] Slide {doc.metadata.get('page')} - {doc.metadata.get('source')}"
-        content = doc.page_content
-        
-        display_text = f"{tool_tip}\n{query_text}\n{separator}\n{header}\n{separator}\n{content}"
-        return display_text
+        content = format_slide_content(doc.page_content, terminal_width)
+        return content
 
-    # Setup UI components
-    text_area = TextArea(text=get_slide_text(i), scrollbar=True, wrap_lines=True, read_only=True, line_numbers=True)
-    frame = Frame(text_area)
-    layout = Layout(HSplit([frame]))
+    # Create styled components
+    tooltip = TextArea(
+        text="Press [n]ext, [p]rev, [o]pen PDF, or [q]uit",
+        style="class:tooltip",
+        wrap_lines=True,
+        read_only=True,
+        height=1
+    )
+    
+    query_label = TextArea(
+        text=f"🔍 Search query: {query}",
+        style="class:query",
+        wrap_lines=True,
+        read_only=True,
+        height=1
+    )
+    
+    separator = TextArea(
+        text="─" * (terminal_width - 4),
+        style="class:separator",
+        read_only=True,
+        height=1
+    )
+    
+    header = TextArea(
+        text=f"[{i+1}/{len(results)}] Slide {results[i].metadata.get('page')} - {results[i].metadata.get('source')}",
+        style="class:header",
+        wrap_lines=True,
+        read_only=True,
+        height=1
+    )
+    
+    # Main content area
+    text_area = TextArea(
+        text=get_slide_text(i),
+        scrollbar=True,
+        wrap_lines=True,
+        read_only=True,
+        line_numbers=True,
+        style="class:content"
+    )
+    
+    def update_content():
+        nonlocal i
+        text_area.text = get_slide_text(i)
+        header.text = f"[{i+1}/{len(results)}] Slide {results[i].metadata.get('page')} - {results[i].metadata.get('source')}"
+    
+    # Create the layout with styled components
+    layout = Layout(
+        HSplit([
+            tooltip,
+            query_label,
+            separator,
+            header,
+            separator,
+            text_area
+        ])
+    )
 
     # Key bindings
     kb = KeyBindings()
@@ -116,13 +187,13 @@ def interactive_slide_viewer(results, query):
     def next_slide(event):
         nonlocal i
         i = (i + 1) % len(results)
-        text_area.text = get_slide_text(i)
+        update_content()
 
     @kb.add('p')
     def previous_slide(event):
         nonlocal i
         i = (i - 1) % len(results)
-        text_area.text = get_slide_text(i)
+        update_content()
 
     @kb.add('q')
     def exit_viewer(event):
@@ -135,8 +206,22 @@ def interactive_slide_viewer(results, query):
         page = doc.metadata.get('page')
         os.system(f"open -a Preview {pdf_path}")
 
-    # Launch app
-    app = Application(layout=layout, key_bindings=kb, full_screen=True)
+    # Define styles
+    style = Style([
+        ('tooltip', 'fg:ansiyellow italic'),
+        ('query', 'fg:ansigreen bold'),
+        ('separator', 'fg:ansiblue'),
+        ('header', 'fg:ansicyan bold'),
+        ('content', 'fg:ansiwhite'),
+    ])
+
+    # Launch app with custom styles
+    app = Application(
+        layout=layout,
+        key_bindings=kb,
+        full_screen=True,
+        style=style
+    )
     app.run()
 
 

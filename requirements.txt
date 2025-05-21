@@ -4,3 +4,5 @@ langchain-huggingface
 PyMuPDF
 PyYAML
 sentence-transformers
+rich
+prompt-toolkit
