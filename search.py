@@ -4,11 +4,18 @@ import sys
 import logging
 import argparse
 import yaml
+import shutil
 from typing import List
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.schema import Document
 import time
+from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.application import Application
+from prompt_toolkit.layout import Layout
+from prompt_toolkit.widgets import TextArea, Frame
+from prompt_toolkit.layout.containers import HSplit
 
 def load_config() -> dict:
     """Load configuration from YAML file."""
@@ -71,6 +78,68 @@ def search_documents(query: str, k: int = DEFAULT_K) -> List[Document]:
     except Exception as e:
         logging.error(f"Error during search: {str(e)}")
         sys.exit(1)
+    
+
+def get_terminal_width() -> int:
+    """Get the width of the terminal window."""
+    try:
+        columns, _ = shutil.get_terminal_size()
+        return columns
+    except:
+        return 80  # fallback to default width
+
+def interactive_slide_viewer(results, query):
+    i = 0
+    terminal_width = get_terminal_width()
+    separator = "-" * (terminal_width - 7)
+
+    def get_slide_text(index):
+        tool_tip = f"Press [n]ext, [p]rev, [o]pen PDF, or [q]uit"
+        query_text = f"🔍 Search query: {query}"
+        
+        doc = results[index]
+        header = f"[{index+1}/{len(results)}] Slide {doc.metadata.get('page')} - {doc.metadata.get('source')}"
+        content = doc.page_content
+        
+        display_text = f"{tool_tip}\n{query_text}\n{separator}\n{header}\n{separator}\n{content}"
+        return display_text
+
+    # Setup UI components
+    text_area = TextArea(text=get_slide_text(i), scrollbar=True, wrap_lines=True, read_only=True, line_numbers=True)
+    frame = Frame(text_area)
+    layout = Layout(HSplit([frame]))
+
+    # Key bindings
+    kb = KeyBindings()
+
+    @kb.add('n')
+    def next_slide(event):
+        nonlocal i
+        i = (i + 1) % len(results)
+        text_area.text = get_slide_text(i)
+
+    @kb.add('p')
+    def previous_slide(event):
+        nonlocal i
+        i = (i - 1) % len(results)
+        text_area.text = get_slide_text(i)
+
+    @kb.add('q')
+    def exit_viewer(event):
+        event.app.exit()
+        
+    @kb.add('o')
+    def open_pdf(event):
+        doc = results[i]
+        pdf_path = doc.metadata.get('source')
+        page = doc.metadata.get('page')
+        os.system(f"open -a Preview {pdf_path}")
+
+    # Launch app
+    app = Application(layout=layout, key_bindings=kb, full_screen=True)
+    app.run()
+
+
 
 def main():
     """Main function to run the search."""
@@ -81,18 +150,19 @@ def main():
     parser.add_argument('-k', type=int, default=DEFAULT_K, 
                       help=f'Number of results to return (default: {DEFAULT_K})')
     parser.add_argument('-v', action='store_true', help='Verbose output')
+    parser.add_argument('-i', action='store_true', help='Interactive mode')
     args = parser.parse_args()
     
     try:
         results = search_documents(args.query, args.k)
         
-        if results:
+        if args.i:
+            interactive_slide_viewer(results, args.query)
+        else:
             print("\n=== 🔍 Top Relevant Results ===\n")
             for doc in results:
                 print(format_search_result(doc, args.v))
             print(f"\nFound {len(results)} relevant results.")
-        else:
-            print("\nNo relevant results found. Try rephrasing your query.")
             
     except KeyboardInterrupt:
         logging.info("\nSearch interrupted by user.")
