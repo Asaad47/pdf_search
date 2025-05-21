@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
-import os
-import sys
 import logging
 import argparse
 import yaml
 import shutil
+import time
+import readchar
+import os
+import sys
 from typing import List
+import logging
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.schema import Document
-import time
-from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.application import Application
-from prompt_toolkit.layout import Layout
-from prompt_toolkit.widgets import TextArea
-from prompt_toolkit.layout.containers import HSplit
-from prompt_toolkit.styles import Style
+from rich.console import Console
+from rich.markdown import Markdown
+from io import StringIO
 
 def load_config() -> dict:
     """Load configuration from YAML file."""
@@ -87,157 +86,48 @@ def get_terminal_width() -> int:
         return columns
     except:
         return 80  # fallback to default width
-    
 
-def format_slide_content(content: str, max_width: int) -> str:
-    """Format slide content with proper wrapping and indentation."""
-    # Split into lines and process each line
-    lines = content.split('\n')
-    formatted_lines = []
-    for line in lines:
-        # Remove leading/trailing whitespace
-        line = line.strip()
-        if not line:
-            formatted_lines.append('')
-            continue
-            
-        # Handle bullet points
-        if line.startswith('▶'):
-            # Add proper indentation for bullet points
-            formatted_lines.append('  • ' + line[1:].strip())
-        else:
-            formatted_lines.append(line)
-    
-    return '\n'.join(formatted_lines)
-
+def format_slide_content(content: str) -> str:
+    """Convert markdown content to ANSI text using rich."""
+    sio = StringIO()
+    console = Console(file=sio, force_terminal=True, width=get_terminal_width())
+    console.print(Markdown(content))
+    return sio.getvalue()
 
 def interactive_slide_viewer(results, query):
+    console = Console()
     i = 0
-    terminal_width = get_terminal_width()
+    total = len(results)
 
-    def get_slide_text(index):
+    def display_slide(index):
+        os.system("clear")  # clear screen
         doc = results[index]
-        content = format_slide_content(doc.page_content, terminal_width)
-        return content
+        metadata = doc.metadata
 
-    # Create styled components
-    tooltip = TextArea(
-        text="Press [n]ext, [p]rev, [o]pen PDF, or [q]uit",
-        style="class:tooltip",
-        read_only=True,
-        height=1,
-        wrap_lines=True,
-        multiline=False,
-        focusable=False
-    )
-    
-    query_label = TextArea(
-        text=f"🔍 Search query: {query}",
-        style="class:query",
-        read_only=True,
-        height=1,
-        wrap_lines=True,
-        # multiline=False,
-        focusable=False
-    )
-    
-    separator = TextArea(
-        text="─" * (terminal_width - 4),
-        style="class:separator",
-        read_only=True,
-        height=1,
-        wrap_lines=True,
-        multiline=False,
-        focusable=False
-    )
-    
-    header = TextArea(
-        text=f"[{i+1}/{len(results)}] Slide {results[i].metadata.get('page')} - {results[i].metadata.get('source')}",
-        style="class:header",
-        read_only=True,
-        height=2,
-        wrap_lines=True,
-        multiline=True,
-        focusable=False
-    )
-    
-    # Main content area
-    text_area = TextArea(
-        text=get_slide_text(i),
-        scrollbar=True,
-        wrap_lines=True,
-        read_only=True,
-        line_numbers=True,
-        style="class:content",
-        height=20,  # Set a fixed height for the content area
-        multiline=True,  # Enable multiline editing
-        focusable=True,  # Make sure it can receive focus
-        accept_handler=None  # Disable text input
-    )
-    
-    def update_content():
-        nonlocal i
-        text_area.text = get_slide_text(i)
-        header.text = f"[{i+1}/{len(results)}] Slide {results[i].metadata.get('page')} - {results[i].metadata.get('source')}"
-    
-    # Create the layout with styled components
-    layout = Layout(
-        HSplit([
-            tooltip,
-            query_label,
-            separator,
-            header,
-            separator,
-            text_area
-        ])
-    )
+        header = f"[{index + 1}/{total}] Slide {metadata.get('page')} - {metadata.get('source')}"
+        console.rule(header)
+        console.print(f"[bold green]🔍 Search query:[/] {query}\n")
+        console.print("\n[yellow]Commands:[/] [b]n[/b] = next, [b]p[/b] = previous, [b]o[/b] = open PDF, [b]q[/b] = quit")
+        console.print("-" * get_terminal_width())
+        console.print(Markdown(doc.page_content))
 
-    # Key bindings
-    kb = KeyBindings()
+    while True:
+        display_slide(i)
+        key = readchar.readkey()
 
-    @kb.add('n')
-    def next_slide(event):
-        nonlocal i
-        i = (i + 1) % len(results)
-        update_content()
-
-    @kb.add('p')
-    def previous_slide(event):
-        nonlocal i
-        i = (i - 1) % len(results)
-        update_content()
-
-    @kb.add('q')
-    def exit_viewer(event):
-        event.app.exit()
-        
-    @kb.add('o')
-    def open_pdf(event):
-        doc = results[i]
-        pdf_path = doc.metadata.get('source')
-        page = doc.metadata.get('page')
-        os.system(f"open -a Preview {pdf_path}")
-
-    # Define styles
-    style = Style([
-        ('tooltip', 'fg:ansiyellow italic'),
-        ('query', 'fg:ansigreen bold'),
-        ('separator', 'fg:ansiblue'),
-        ('header', 'fg:ansicyan bold'),
-        ('content', 'fg:ansiwhite'),
-    ])
-
-    # Launch app with custom styles
-    app = Application(
-        layout=layout,
-        key_bindings=kb,
-        full_screen=True,
-        style=style,
-        mouse_support=True,  # Enable mouse scrolling
-        # editing_mode='emacs'  # Use emacs key bindings for better navigation
-    )
-    app.run()
-
+        if key == 'n':
+            i = (i + 1) % total
+        elif key == 'p':
+            i = (i - 1) % total
+        elif key == 'o':
+            doc = results[i]
+            pdf_path = doc.metadata.get("source")
+            if pdf_path:
+                os.system(f'open -a Preview "{pdf_path}"')  # macOS only
+        elif key == 'q':
+            break
+        else:
+            console.print("[red]Invalid key. Use n, p, o, or q.[/red]")
 
 
 def main():

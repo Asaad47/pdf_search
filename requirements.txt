@@ -2,7 +2,8 @@ langchain-community
 langchain-chroma
 langchain-huggingface
 PyMuPDF
+PyMuPDF4LLM
 PyYAML
 sentence-transformers
 rich
-prompt-toolkit
+readchar

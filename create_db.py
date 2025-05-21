@@ -3,8 +3,9 @@ import logging
 import glob
 import yaml
 import shutil
-from pathlib import Path
-from langchain_community.document_loaders import PyMuPDFLoader
+import pymupdf
+from pymupdf4llm import to_markdown
+from langchain.schema import Document
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 import time
@@ -43,6 +44,29 @@ def find_pdf_files(patterns: list[str]) -> list[str]:
     # Remove duplicates while preserving order
     return list(dict.fromkeys(pdf_files))
 
+def load_pdf_as_markdown(pdf_path: str) -> list[Document]:
+    """Load a PDF file and convert it to markdown documents."""
+    try:
+        doc = pymupdf.open(pdf_path)
+        # Get total number of pages
+        total_pages = len(doc)
+        
+        # Convert each page to markdown
+        pages = to_markdown(doc, page_chunks=True)
+        documents = [Document(
+            page_content=page['text'], 
+            metadata={
+                'source': pdf_path, 
+                'page': page['metadata']['page'], 
+                'total_pages': total_pages
+            }
+        ) for page in pages]
+            
+        return documents
+    except Exception as e:
+        logging.error(f"Error processing PDF {pdf_path}: {str(e)}")
+        return []
+
 # ==== Step 1: Load and parse all PDFs ====
 documents = []
 pdf_files = find_pdf_files(PDF_PATHS)
@@ -55,15 +79,15 @@ logging.info(f"Found {len(pdf_files)} PDF files to process")
 start_time = time.time()
 for pdf_path in pdf_files:
     try:
-        loader = PyMuPDFLoader(pdf_path)
-        doc_slides = loader.load()
-        documents.extend(doc_slides)
-        logging.info(f"✅ Extracted {len(doc_slides)} slides from: {pdf_path}")
+        doc_slides = load_pdf_as_markdown(pdf_path)
+        if doc_slides:
+            documents.extend(doc_slides)
+            logging.info(f"✅ Extracted {len(doc_slides)} pages from: {pdf_path}")
     except Exception as e:
         logging.error(f"❌ Error loading PDF {pdf_path}: {str(e)}")
         continue
 end_time = time.time()
-logging.info(f"⏰ Extracted {len(documents)} slides from {len(pdf_files)} PDFs in {end_time - start_time} seconds")
+logging.info(f"⏰ Extracted {len(documents)} pages from {len(pdf_files)} PDFs in {end_time - start_time} seconds")
 
 if not documents:
     logging.error("No documents were loaded. Please check if PDF files exist and are valid.")
