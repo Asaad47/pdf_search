@@ -12,9 +12,11 @@ import logging
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.schema import Document
-from rich.console import Console
+from rich.console import Console, Group
 from rich.markdown import Markdown
 from io import StringIO
+from rich.panel import Panel
+from rich.live import Live
 
 def load_config() -> dict:
     """Load configuration from YAML file."""
@@ -94,40 +96,41 @@ def format_slide_content(content: str) -> str:
     console.print(Markdown(content))
     return sio.getvalue()
 
+
 def interactive_slide_viewer(results, query):
     console = Console()
     i = 0
     total = len(results)
-
-    def display_slide(index):
-        os.system("clear")  # clear screen
+    
+    def render_slide(index):
         doc = results[index]
         metadata = doc.metadata
+        title = f"[{index + 1}/{total}] Slide {metadata.get('page')} - {metadata.get('source')}"
+        slide_md = Markdown(doc.page_content)
+        query_bar = f"[bold green]🔍 Search query:[/] {query}"
+        seperator = "─" * (get_terminal_width() - 4)
+        footer = "[dim yellow]Press: \[n]ext, \[p]rev, \[o]pen PDF, \[q]uit[/dim yellow]"
+        content = Group(query_bar, seperator, slide_md, "")
+        return Panel(content, title=title, subtitle=footer, border_style="cyan")
 
-        header = f"[{index + 1}/{total}] Slide {metadata.get('page')} - {metadata.get('source')}"
-        console.rule(header)
-        console.print(f"[bold green]🔍 Search query:[/] {query}\n")
-        console.print("\n[yellow]Commands:[/] [b]n[/b] = next, [b]p[/b] = previous, [b]o[/b] = open PDF, [b]q[/b] = quit")
-        console.print("-" * get_terminal_width())
-        console.print(Markdown(doc.page_content))
-
-    while True:
-        display_slide(i)
-        key = readchar.readkey()
-
-        if key == 'n':
-            i = (i + 1) % total
-        elif key == 'p':
-            i = (i - 1) % total
-        elif key == 'o':
-            doc = results[i]
-            pdf_path = doc.metadata.get("source")
-            if pdf_path:
-                os.system(f'open -a Preview "{pdf_path}"')  # macOS only
-        elif key == 'q':
-            break
-        else:
-            console.print("[red]Invalid key. Use n, p, o, or q.[/red]")
+    with Live(render_slide(i), refresh_per_second=10, console=console) as live:
+        while True:
+            key = readchar.readkey()
+            if key == 'n':
+                i = (i + 1) % total
+                live.update(render_slide(i))
+            elif key == 'p':
+                i = (i - 1) % total
+                live.update(render_slide(i))
+            elif key == 'o':
+                doc = results[i]
+                pdf_path = doc.metadata.get("source")
+                if pdf_path:
+                    os.system(f'open -a Preview "{pdf_path}"')  # macOS
+            elif key == 'q':
+                break
+            else:
+                console.print(f"[red]Unknown key:[/] {key}")
 
 
 def main():
