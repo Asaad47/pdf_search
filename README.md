@@ -11,6 +11,12 @@ A command-line tool for searching through PDF documents using semantic search ca
 - 🔄 Persistent vector database for fast searches
 - 📱 PDF preview integration (macOS)
 
+## Screenshot
+
+Running the tool in interactive mode with a search query "What is a k-mer?":
+
+![Screenshot](./example.jpg)
+
 ## Installation
 
 1. Clone the repository:
