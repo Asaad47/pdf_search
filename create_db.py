@@ -7,6 +7,7 @@ from pathlib import Path
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
+import time
 
 def load_config() -> dict:
     """Load configuration from YAML file."""
@@ -51,6 +52,7 @@ if not pdf_files:
     exit(1)
 
 logging.info(f"Found {len(pdf_files)} PDF files to process")
+start_time = time.time()
 for pdf_path in pdf_files:
     try:
         loader = PyMuPDFLoader(pdf_path)
@@ -58,8 +60,10 @@ for pdf_path in pdf_files:
         documents.extend(doc_slides)
         logging.info(f"✅ Extracted {len(doc_slides)} slides from: {pdf_path}")
     except Exception as e:
-        logging.error(f"Error loading PDF {pdf_path}: {str(e)}")
+        logging.error(f"❌ Error loading PDF {pdf_path}: {str(e)}")
         continue
+end_time = time.time()
+logging.info(f"⏰ Extracted {len(documents)} slides from {len(pdf_files)} PDFs in {end_time - start_time} seconds")
 
 if not documents:
     logging.error("No documents were loaded. Please check if PDF files exist and are valid.")
@@ -81,8 +85,10 @@ try:
         shutil.rmtree(CHROMA_DIR)
         os.makedirs(CHROMA_DIR, exist_ok=True)
 
+    start_time = time.time()
     vectorstore = Chroma.from_documents(documents, embedding_model, persist_directory=CHROMA_DIR)
-    logging.info("✅ Database created and persisted successfully")
+    end_time = time.time()
+    logging.info(f"⏰ Database created and persisted successfully in {end_time - start_time} seconds")
     
 except Exception as e:
     logging.error(f"Error creating vector database: {str(e)}")

@@ -8,6 +8,7 @@ from typing import List
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.schema import Document
+import time
 
 def load_config() -> dict:
     """Load configuration from YAML file."""
@@ -56,7 +57,10 @@ def search_documents(query: str, k: int = DEFAULT_K) -> List[Document]:
         
         # Perform search
         logging.info(f"Searching for: {query}")
+        start_time = time.time()
         results = vectorstore.similarity_search(query, k=k)
+        end_time = time.time()
+        logging.info(f"⏰ Search completed in {end_time - start_time} seconds")
         
         if not results:
             logging.warning("No results found for the query.")
