@@ -17,6 +17,7 @@ from rich.markdown import Markdown
 from io import StringIO
 from rich.panel import Panel
 from rich.live import Live
+from create_db import find_pdf_files
 
 def load_config() -> dict:
     """Load configuration from YAML file."""
@@ -50,7 +51,7 @@ def format_search_result(doc: Document, verbose: bool = False, max_length: int =
     else:
         return f"[Slide {doc.metadata['page']} - {doc.metadata['file_path']}]"
 
-def search_documents(query: str, k: int = DEFAULT_K) -> List[Document]:
+def search_documents(query: str, k: int = DEFAULT_K, exclude_classes: List[str] = None) -> List[Document]:
     """Perform semantic search on the vector database."""
     try:
         # Check if database exists
@@ -66,7 +67,10 @@ def search_documents(query: str, k: int = DEFAULT_K) -> List[Document]:
         # Perform search
         logging.info(f"Searching for: {query}")
         start_time = time.time()
-        results = vectorstore.similarity_search(query, k=k)
+        if exclude_classes:
+            results = vectorstore.similarity_search(query, k=k, filter={"source": {"$nin": exclude_classes}})
+        else:
+            results = vectorstore.similarity_search(query, k=k)
         end_time = time.time()
         logging.info(f"⏰ Search completed in {end_time - start_time} seconds")
         
@@ -143,10 +147,27 @@ def main():
                       help=f'Number of results to return (default: {DEFAULT_K})')
     parser.add_argument('-v', action='store_true', help='Verbose output')
     parser.add_argument('-i', action='store_true', help='Interactive mode')
+    parser.add_argument('-x', type=str, help='classes to exclude from search (comma separated)')
     args = parser.parse_args()
     
     try:
-        results = search_documents(args.query, args.k)
+        if args.x:
+            classes_to_exclude = args.x.split(',')
+            exclude_patterns = []
+            # get classes from config.yaml
+            pdf_paths = config['pdf_paths']
+            for class_to_exclude in classes_to_exclude:
+                for path in pdf_paths:
+                    if class_to_exclude in path:
+                        exclude_patterns.append(path)
+                        break
+            print(exclude_patterns)
+            
+            exclude_classes = find_pdf_files(exclude_patterns)
+            print(exclude_classes)
+        else:
+            exclude_classes = None
+        results = search_documents(args.query, args.k, exclude_classes)
         
         if args.i:
             interactive_slide_viewer(results, args.query)
