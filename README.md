@@ -35,10 +35,12 @@ pip install -r requirements.txt
 The tool uses a `config.yaml` file for configuration. Here's the default structure:
 
 ```yaml
+# Can be specific files or glob patterns like "path/to/dir/*.pdf"
 pdf_paths:
   - "/path/to/pdf1.pdf"
   - "/path/to/pdf2.pdf"
   - "/path/to/pdf3.pdf"
+
 chroma_dir: "./chroma_db"
 default_query: "What is Machine Learning?"
 default_k_results: 5
