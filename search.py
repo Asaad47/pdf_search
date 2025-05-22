@@ -108,7 +108,7 @@ def interactive_slide_viewer(results, query):
         title = f"[{index + 1}/{total}] [bold blue]Slide {metadata.get('page')} - {metadata.get('source')}[/bold blue]"
         slide_md = Markdown(doc.page_content)
         query_bar = f"[bold green]🔍 Search query:[/] {query}"
-        seperator = "─" * (get_terminal_width() - 4)
+        seperator = "[cyan]" + "─" * (get_terminal_width() - 4) + "[/cyan]"
         footer = "[yellow]Press: \[n]ext, \[p]rev, \[o]pen PDF, \[q]uit[/yellow]"
         content = Group(query_bar, seperator, slide_md, "")
         return Panel(content, title=title, subtitle=footer, border_style="cyan")
